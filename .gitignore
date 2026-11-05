@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+config/.env
+config/.env.*
+!config/.env.example
+
+# Service-account credentials and private keys
+**/*credentials*.json
+**/*secrets*.json
+**/*service-account*.json
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+**/*firebaseAdminSdk*.json
+**/*.pem
+**/*.key
+
+# Runtime data
+/uploads/
+/logs/
+*.log
+coverage/
+dist/
+dist-ssr/
+
+# Local/editor files
+*.local
+.DS_Store
+.idea/
