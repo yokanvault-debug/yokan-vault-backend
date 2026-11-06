@@ -14,8 +14,23 @@ const imageUrlForEmail = (image, storefrontUrl) => {
     }
 }
 
+// Never let a STORE_URL / CORS_ORIGINS misconfiguration block an order email.
+const resolveStorefrontUrl = () => {
+    try {
+        return getStorefrontUrl()
+    } catch (error) {
+        console.warn('Order email: storefront URL not usable, using fallback:', error.message)
+        const raw = String(process.env.STORE_URL || '').trim()
+        try {
+            return new URL(raw || 'http://localhost:5173').origin
+        } catch (e) {
+            return 'http://localhost:5173'
+        }
+    }
+}
+
 const createOrderDetailsHtml = (order) => {
-    const storefrontUrl = getStorefrontUrl()
+    const storefrontUrl = resolveStorefrontUrl()
     const money = (amount) => `PHP ${Number(amount || 0).toFixed(2)}`
     const rows = (order.orderItems || []).map((item) => {
         const name = escapeHtml(item.name)

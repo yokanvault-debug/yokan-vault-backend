@@ -476,7 +476,7 @@ const describeEmailFailure = (error) => {
     if (error.code === 'ENOENT') {
         return 'An email attachment or logo file is missing from the deployed backend.'
     }
-    return `Email could not be sent${code ? ` (${code})` : ''}. Check the backend service logs for details.`
+    return `Email could not be sent${code ? ` (${code})` : ''}${error.message ? `: ${String(error.message).slice(0, 160)}` : ''}. Check the backend service logs for details.`
 }
 
 const notifyCustomer = async (order, newStatus, { confirmation = false, customer: orderCustomer } = {}) => {
@@ -512,7 +512,7 @@ const notifyCustomer = async (order, newStatus, { confirmation = false, customer
             emailSent = true
         }
     } catch (error) {
-        console.error('Order email failed:', error.code || error.name || 'unknown error', error.message)
+        console.error('Order email failed:', error.code || error.name || 'unknown error', error.message, error.stack)
         const context = confirmation ? 'Order was created' : 'Order status was updated'
         emailError = `${context}, but email delivery failed: ${describeEmailFailure(error)}`
     }
