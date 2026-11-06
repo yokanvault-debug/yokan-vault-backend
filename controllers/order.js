@@ -499,7 +499,13 @@ const notifyCustomer = async (order, newStatus, { confirmation = false, customer
                     : [`Your order ${order._id} is now ${newStatus}.`, 'Your receipt is attached as a PDF.'],
                 contentHtml: createOrderDetailsHtml(order),
             })
-            const pdf = await buildReceipt(order, customer)
+            let attachments = []
+            try {
+                const pdf = await buildReceipt(order, customer)
+                attachments = [{ filename: `receipt-${order._id}.pdf`, content: pdf, contentType: 'application/pdf' }]
+            } catch (receiptError) {
+                console.error('Receipt PDF failed, sending email without it:', receiptError.message)
+            }
             await emailService.sendMail({
                 to: customer.email,
                 subject: confirmation ? `Yokan Vault order confirmation ${order._id}` : `Yokan Vault order ${newStatus}`,
@@ -507,7 +513,7 @@ const notifyCustomer = async (order, newStatus, { confirmation = false, customer
                     ? `Thank you for your order. Order ${order._id} is confirmed. Grand total: ${money(order.totalPrice)}`
                     : `Your order ${order._id} is now ${newStatus}. Grand total: ${money(order.totalPrice)}`,
                 html,
-                attachments: [{ filename: `receipt-${order._id}.pdf`, content: pdf, contentType: 'application/pdf' }]
+                attachments
             })
             emailSent = true
         }

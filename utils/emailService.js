@@ -2,13 +2,21 @@ const nodemailer = require('nodemailer');
 const { createEmailHtml } = require('./emailTemplate');
 const { getLogoBuffer } = require('./brandAssets');
 
-const getInlineLogoAttachment = () => ({
-  filename: 'yokan-logo.png',
-  content: getLogoBuffer(),
-  contentType: 'image/png',
-  cid: 'yokan-vault-logo',
-  contentDisposition: 'inline',
-});
+// A missing logo must never stop an email from being sent
+const getInlineLogoAttachment = () => {
+  try {
+    return {
+      filename: 'yokan-logo.png',
+      content: getLogoBuffer(),
+      contentType: 'image/png',
+      cid: 'yokan-vault-logo',
+      contentDisposition: 'inline',
+    };
+  } catch (error) {
+    console.warn('Email logo skipped:', error.message);
+    return null;
+  }
+};
 
 // Reads the Mailtrap settings from either naming style, so it works with the
 // original Yokan variables (EMAIL_*) and the itcp318 ones (SMTP_*).
@@ -96,7 +104,7 @@ const sendVerificationEmail = async (toEmail, verificationUrl, firstName = '', l
     subject: 'Verify your Yokan Vault email',
     text: `Thanks for creating a Yokan Vault account. Verify your email here: ${verificationUrl}`,
     html,
-    attachments: [getInlineLogoAttachment()],
+    attachments: [getInlineLogoAttachment()].filter(Boolean),
   });
   console.log('Verification email sent');
   return info;
@@ -111,7 +119,7 @@ const sendMail = async ({ to, subject, text, html, attachments }) => {
     subject,
     text,
     html,
-    attachments: [getInlineLogoAttachment(), ...(attachments || [])],
+    attachments: [getInlineLogoAttachment(), ...(attachments || [])].filter(Boolean),
   });
   console.log('Email sent');
   return info;
