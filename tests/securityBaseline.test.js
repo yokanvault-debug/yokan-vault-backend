@@ -160,7 +160,10 @@ test('only admins can update products or delete reviews', async () => {
     Product.findById = async () => product
     Product.findByIdAndUpdate = async (_id, update) => {
         updateCount += 1
-        Object.assign(product, update)
+        if (update.$pull?.reviews) {
+            product.reviews = product.reviews.filter(review => review._id.toString() !== update.$pull.reviews._id)
+        }
+        Object.assign(product, update.$set || update)
         return product
     }
     try {
@@ -176,6 +179,22 @@ test('only admins can update products or delete reviews', async () => {
                     body: JSON.stringify({ name: 'Customer edit' })
                 })
                 assert.equal(customerUpdate.status, 403)
+                assert.equal(updateCount, 0)
+
+                const customerReviewList = await fetch(`${api.origin}/admin/reviews`, {
+                    headers: { cookie: `token=${context.tokenFor('regular')}` }
+                })
+                assert.equal(customerReviewList.status, 403)
+
+                const customerReviewEdit = await fetch(`${api.origin}/admin/reviews/${productId}/${reviewId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'content-type': 'application/json',
+                        cookie: `token=${context.tokenFor('regular')}`
+                    },
+                    body: JSON.stringify({ rating: 1, comment: 'Customer edit' })
+                })
+                assert.equal(customerReviewEdit.status, 403)
                 assert.equal(updateCount, 0)
 
                 const adminUpdate = await fetch(`${api.origin}/admin/product/${productId}`, {

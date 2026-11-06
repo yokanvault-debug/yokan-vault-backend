@@ -7,6 +7,21 @@ const Filter = require('bad-words');
 const mongoose = require('mongoose')
 const badWords = new Filter();
 
+const moderateReviewComment = (comment) => {
+    const cleanComment = badWords.clean(comment)
+    if (typeof cleanComment !== 'string' || !cleanComment.trim()) {
+        throw new Error('Review moderation returned an invalid comment')
+    }
+    return cleanComment
+}
+
+const updateProductReviewStats = (product) => {
+    product.numOfReviews = product.reviews.length
+    product.ratings = product.reviews.length
+        ? product.reviews.reduce((total, review) => total + review.rating, 0) / product.reviews.length
+        : 0
+}
+
 exports.newProduct = async (req, res, next) => {
     try {
         const imagesLinks = [];
@@ -174,10 +189,7 @@ exports.createProductReview = async (req, res, next) => {
 
     let cleanComment
     try {
-        cleanComment = badWords.clean(comment.trim())
-        if (typeof cleanComment !== 'string' || !cleanComment.trim()) {
-            throw new Error('Review moderation returned an invalid comment')
-        }
+        cleanComment = moderateReviewComment(comment.trim())
     } catch {
         return res.status(503).json({
             success: false,
@@ -190,6 +202,7 @@ exports.createProductReview = async (req, res, next) => {
     const existing = reviews.find(r => String(r.user?._id || r.user) === String(req.user._id))
     if (existing) {
         existing.comment = cleanComment;
+        existing.originalComment = comment.trim();
         existing.rating = parsedRating;
         existing.order = deliveredOrder._id
     } else {
@@ -198,11 +211,11 @@ exports.createProductReview = async (req, res, next) => {
             name: req.user.name || req.user.displayName || 'Customer',
             rating: parsedRating,
             comment: cleanComment,
+            originalComment: comment.trim(),
             order: deliveredOrder._id
         });
     }
-    product.numOfReviews = product.reviews.length
-    product.ratings = product.reviews.reduce((acc, item) => item.rating + acc, 0) / product.reviews.length
+    updateProductReviewStats(product)
     try {
         await product.save()
     } catch (error) {
@@ -222,19 +235,106 @@ exports.getProductReviews = async (req, res, next) => {
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' })
     res.status(200).json({
         success: true,
-        reviews: product.reviews
+        reviews: (product.reviews || []).map(({ _id, user, name, rating, comment }) => ({
+            _id,
+            user,
+            name,
+            rating,
+            comment
+        }))
     })
 }
 
-exports.deleteReview = async (req, res, next) => {
-    if (!mongoose.isObjectIdOrHexString(req.query.productId) ||
-        !mongoose.isObjectIdOrHexString(req.query.id)) {
+exports.getAdminReviews = async (req, res, next) => {
+    try {
+        const products = await Product.find({ 'reviews.0': { $exists: true } })
+            .select('_id name reviews')
+            .select('+reviews.originalComment')
+        const reviews = products.flatMap(product => (product.reviews || []).map(review => {
+            const user = review.user
+            return {
+                _id: String(review._id),
+                productId: String(product._id),
+                productName: product.name,
+                reviewer: user?.name || review.name || 'Customer',
+                rating: review.rating,
+                comment: review.comment,
+                originalComment: review.originalComment || review.comment
+            }
+        }))
+        return res.status(200).json({ success: true, reviews })
+    } catch (error) {
+        return next(error)
+    }
+}
+
+exports.updateAdminReview = async (req, res, next) => {
+    const { productId, id } = req.params
+    const { rating, comment } = req.body || {}
+    const parsedRating = typeof rating === 'number' || (typeof rating === 'string' && /^\d+$/.test(rating))
+        ? Number(rating)
+        : NaN
+    if (!mongoose.isObjectIdOrHexString(productId) || !mongoose.isObjectIdOrHexString(id)) {
         return res.status(400).json({ success: false, message: 'Invalid product or review ID' })
     }
-    const product = await Product.findById(req.query.productId);
+    if (!Number.isInteger(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+        return res.status(400).json({ success: false, message: 'Rating must be a whole number from 1 to 5' })
+    }
+    if (typeof comment !== 'string' || !comment.trim() || comment.trim().length > 500) {
+        return res.status(400).json({ success: false, message: 'A review comment of 1 to 500 characters is required' })
+    }
+
+    let cleanComment
+    try {
+        cleanComment = moderateReviewComment(comment.trim())
+    } catch {
+        return res.status(503).json({
+            success: false,
+            message: 'Review moderation is temporarily unavailable. Please try again later.'
+        })
+    }
+
+    const product = await Product.findById(productId)
+    if (!product) return res.status(404).json({ success: false, message: 'Product not found' })
+    const review = (product.reviews || []).find(item => String(item._id) === id)
+    if (!review) return res.status(404).json({ success: false, message: 'Review not found' })
+
+    try {
+        const updatedProduct = await Product.findOneAndUpdate(
+            { _id: productId, 'reviews._id': id },
+            {
+                $set: {
+                    'reviews.$.rating': parsedRating,
+                    'reviews.$.comment': cleanComment,
+                    'reviews.$.originalComment': comment.trim(),
+                    ratings: (product.reviews.reduce((total, item) =>
+                        total + (String(item._id) === id ? parsedRating : item.rating), 0)) / product.reviews.length,
+                    numOfReviews: product.reviews.length
+                }
+            },
+            { returnDocument: 'after', runValidators: true }
+        )
+        if (!updatedProduct) return res.status(404).json({ success: false, message: 'Review not found' })
+    } catch (error) {
+        if (error.name === 'ValidationError' || error.name === 'CastError') {
+            return res.status(400).json({ success: false, message: 'The review details are invalid.' })
+        }
+        return next(error)
+    }
+    return res.status(200).json({ success: true })
+}
+
+exports.deleteReview = async (req, res, next) => {
+    const productId = req.params.productId || req.query.productId
+    const reviewId = req.params.id || req.query.id
+    if (!mongoose.isObjectIdOrHexString(productId) ||
+        !mongoose.isObjectIdOrHexString(reviewId)) {
+        return res.status(400).json({ success: false, message: 'Invalid product or review ID' })
+    }
+    const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' })
     const existingReviews = product.reviews || []
-    const reviews = existingReviews.filter(review => review._id.toString() !== req.query.id.toString());
+    const reviews = existingReviews.filter(review => review._id.toString() !== reviewId.toString());
     if (reviews.length === existingReviews.length) {
         return res.status(404).json({ success: false, message: 'Review not found' })
     }
@@ -242,10 +342,9 @@ exports.deleteReview = async (req, res, next) => {
 
     const ratings = reviews.length ? reviews.reduce((acc, item) => item.rating + acc, 0) / reviews.length : 0
 
-    const updatedProduct = await Product.findByIdAndUpdate(req.query.productId, {
-        reviews,
-        ratings,
-        numOfReviews
+    const updatedProduct = await Product.findByIdAndUpdate(productId, {
+        $pull: { reviews: { _id: reviewId } },
+        $set: { ratings, numOfReviews }
     }, {
         returnDocument: 'after',
         runValidators: true,

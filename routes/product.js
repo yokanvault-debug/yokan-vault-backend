@@ -11,6 +11,8 @@ const {
     getAdminProducts,
     createProductReview,
     getProductReviews,
+    getAdminReviews,
+    updateAdminReview,
     deleteReview,
     bulkDeleteProducts,
     restoreProducts,
@@ -33,5 +35,8 @@ router.delete('/admin/products', isAuthenticatedUser, authorizeRoles('admin'), b
 router.get('/admin/products', isAuthenticatedUser, authorizeRoles('admin'), getAdminProducts)
 router.put('/review', isAuthenticatedUser, createProductReview);
 router.get('/reviews', isAuthenticatedUser, getProductReviews)
+router.get('/admin/reviews', isAuthenticatedUser, authorizeRoles('admin'), getAdminReviews)
+router.put('/admin/reviews/:productId/:id', isAuthenticatedUser, authorizeRoles('admin'), updateAdminReview)
+router.delete('/admin/reviews/:productId/:id', isAuthenticatedUser, authorizeRoles('admin'), deleteReview)
 router.delete('/reviews', isAuthenticatedUser, authorizeRoles('admin'), deleteReview)
 module.exports = router;
