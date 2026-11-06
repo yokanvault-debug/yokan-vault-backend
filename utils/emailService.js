@@ -110,17 +110,46 @@ const sendVerificationEmail = async (toEmail, verificationUrl, firstName = '', l
   return info;
 };
 
+// Mailtrap's sandbox rejects bursts ("550 5.7.0 Too many emails per second"), so all mail goes
+// through one queue with a small gap between sends, and rate-limit rejections are retried.
+const MIN_GAP_MS = 1500;
+const MAX_ATTEMPTS = 4;
+let queue = Promise.resolve();
+let lastSentAt = 0;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isRateLimit = (error) => /too many|rate limit|per second|throttl/i.test(`${error.response || ''} ${error.message || ''}`);
+
+const deliver = async (message) => {
+  for (let attempt = 1; ; attempt += 1) {
+    const wait = lastSentAt + MIN_GAP_MS - Date.now();
+    if (wait > 0) await sleep(wait);
+    try {
+      const info = await createEmailTransporter().sendMail(message);
+      lastSentAt = Date.now();
+      return info;
+    } catch (error) {
+      lastSentAt = Date.now();
+      console.error(`SMTP send failed (attempt ${attempt}/${MAX_ATTEMPTS}):`, error.code || '', error.responseCode || '', error.response || error.message);
+      if (attempt >= MAX_ATTEMPTS || !isRateLimit(error)) throw error;
+      await sleep(2000 * attempt);
+    }
+  }
+};
+
 // generic mail (password reset, order updates). attachments: [{ filename, content }]
 const sendMail = async ({ to, subject, text, html, attachments }) => {
   assertConfigured();
-  const info = await createEmailTransporter().sendMail({
+  const message = {
     from: emailSender(),
     to,
     subject,
     text,
     html,
     attachments: [getInlineLogoAttachment(), ...(attachments || [])].filter(Boolean),
-  });
+  };
+  const run = queue.then(() => deliver(message));
+  queue = run.catch(() => {});
+  const info = await run;
   console.log('Email sent');
   return info;
 };

@@ -471,7 +471,8 @@ const describeEmailFailure = (error) => {
         return `The backend could not connect to the SMTP server (${error.code}). Verify EMAIL_HOST and EMAIL_PORT in Render, then check the backend service logs.`
     }
     if (error.code === 'EENVELOPE' || [550, 553].includes(responseCode)) {
-        return `The SMTP server rejected the sender or recipient${code ? ` (${code})` : ''}. Verify EMAIL_FROM_ADDRESS and the destination address in Render/Mailtrap.`
+        const detail = String(error.response || '').replace(/\s+/g, ' ').slice(0, 200)
+        return `The SMTP server rejected the message${code ? ` (${code})` : ''}${detail ? `: ${detail}` : ''}. If it mentions limits, the Mailtrap inbox may be full or rate-limited: empty the inbox in Mailtrap and retry.`
     }
     if (error.code === 'ENOENT') {
         return 'An email attachment or logo file is missing from the deployed backend.'
