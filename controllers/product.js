@@ -171,7 +171,10 @@ exports.createProductReview = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'A valid delivered order and product are required' })
     }
 
-    const product = await Product.findById(productId);
+    const productQuery = Product.findById(productId)
+    const product = await (typeof productQuery.select === 'function'
+        ? productQuery.select('+reviews.originalComment')
+        : productQuery)
     if (!product) {
         return res.status(404).json({ success: false, message: 'Product not found' })
     }
@@ -202,6 +205,7 @@ exports.createProductReview = async (req, res, next) => {
     const existing = reviews.find(r => String(r.user?._id || r.user) === String(req.user._id))
     if (existing) {
         existing.comment = cleanComment;
+        existing.originalComment = comment.trim();
         existing.rating = parsedRating;
         existing.order = deliveredOrder._id
     } else {
@@ -210,6 +214,7 @@ exports.createProductReview = async (req, res, next) => {
             name: req.user.name || req.user.displayName || 'Customer',
             rating: parsedRating,
             comment: cleanComment,
+            originalComment: comment.trim(),
             order: deliveredOrder._id
         });
     }
@@ -247,6 +252,7 @@ exports.getAdminReviews = async (req, res, next) => {
     try {
         const products = await Product.find({ 'reviews.0': { $exists: true } })
             .select('_id name reviews._id reviews.user reviews.name reviews.rating reviews.comment')
+            .select('+reviews.originalComment')
         const reviews = products.flatMap(product => (product.reviews || []).map(review => {
             const user = review.user
             return {
@@ -255,7 +261,8 @@ exports.getAdminReviews = async (req, res, next) => {
                 productName: product.name,
                 reviewer: user?.name || review.name || 'Customer',
                 rating: review.rating,
-                comment: review.comment
+                comment: review.comment,
+                originalComment: review.originalComment || ''
             }
         }))
         return res.status(200).json({ success: true, reviews })
