@@ -98,8 +98,8 @@ exports.newOrder = async (req, res, next) => {
             { returnDocument: 'after' }
         )
         if (!completedOrder) throw new Error('Order reservation could not be finalized')
-        await notifyCustomer(completedOrder, 'Processing', { confirmation: true, customer: req.user })
-        return res.status(201).json({ success: true, order: publicOrder(completedOrder) })
+        const mail = await notifyCustomer(completedOrder, 'Processing', { confirmation: true, customer: req.user })
+        return res.status(201).json({ success: true, order: publicOrder(completedOrder), ...mail })
     } catch (error) {
         if (order) {
             try {
@@ -461,7 +461,11 @@ const notifyCustomer = async (order, newStatus, { confirmation = false, customer
     let emailSent = false, emailError
     try {
         const customer = orderCustomer || await User.findById(order.user)
-        if (customer && customer.email) {
+        if (!customer?.email) {
+            emailError = confirmation
+                ? 'Order was created, but the customer email address is unavailable.'
+                : 'Order status was updated, but the customer email address is unavailable.'
+        } else {
             const money = (n) => `PHP ${Number(n || 0).toFixed(2)}`
             const customerName = customer.name || customer.displayName || ''
             const html = createEmailHtml({

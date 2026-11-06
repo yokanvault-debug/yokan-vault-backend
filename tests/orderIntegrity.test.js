@@ -4,6 +4,7 @@ const Order = require('../models/order')
 const Product = require('../models/product')
 const User = require('../models/user')
 const orderController = require('../controllers/order')
+const emailService = require('../utils/emailService')
 const { PAID_ORDER_MATCH } = require('../utils/salesReports')
 
 const productId = '64b000000000000000000001'
@@ -174,6 +175,31 @@ test('checkout creation uses database snapshots and server-calculated money fiel
         assert.equal(res.body.order.paidBy, undefined)
         assert.equal(mocks.product.stock, 9)
     } finally {
+        mocks.restore()
+    }
+})
+
+test('checkout reports confirmation email delivery and sends it to the customer', async () => {
+    const mocks = installCheckoutMocks()
+    const originalSendMail = emailService.sendMail
+    let message
+    emailService.sendMail = async (options) => {
+        message = options
+        return { messageId: 'mock-only' }
+    }
+    try {
+        const req = makeRequest()
+        req.user.email = 'customer@example.test'
+        req.user.name = 'Test customer'
+        const res = makeResponse()
+        await orderController.newOrder(req, res)
+        assert.equal(res.statusCode, 201)
+        assert.equal(res.body.emailSent, true)
+        assert.equal(res.body.emailError, undefined)
+        assert.equal(message.to, 'customer@example.test')
+        assert.match(message.subject, /order confirmation/)
+    } finally {
+        emailService.sendMail = originalSendMail
         mocks.restore()
     }
 })

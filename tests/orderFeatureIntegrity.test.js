@@ -4,12 +4,61 @@ const Order = require('../models/order')
 const Product = require('../models/product')
 const User = require('../models/user')
 const orderController = require('../controllers/order')
+const emailService = require('../utils/emailService')
 const productController = require('../controllers/product')
 const Filter = require('bad-words')
 
 const userId = '64b000000000000000000010'
 const productId = '64b000000000000000000001'
 const orderId = '64b000000000000000000020'
+
+test('order status updates send an email and report the delivery result', async () => {
+    const originals = {
+        findById: Order.findById,
+        findOneAndUpdate: Order.findOneAndUpdate,
+        userFindById: User.findById,
+        productUpdateOne: Product.updateOne,
+        sendMail: emailService.sendMail
+    }
+    const order = {
+        _id: orderId,
+        user: userId,
+        orderStatus: 'Processing',
+        paymentInfo: { method: 'Cash on Delivery', status: 'Pending' },
+        orderItems: []
+    }
+    let message
+    Order.findById = async () => order
+    Order.findOneAndUpdate = async (_filter, update) => ({
+        ...order,
+        orderStatus: update.$set.orderStatus
+    })
+    User.findById = async () => ({ name: 'Test customer', email: 'customer@example.test' })
+    Product.updateOne = async () => ({ matchedCount: 1 })
+    emailService.sendMail = async options => {
+        message = options
+        return { messageId: 'mock-only' }
+    }
+    try {
+        const response = makeResponse()
+        await orderController.updateOrder({
+            params: { id: orderId },
+            body: { status: 'Shipped' },
+            user: { _id: '64b000000000000000000099', role: 'admin' }
+        }, response)
+        assert.equal(response.statusCode, 200)
+        assert.equal(response.body.emailSent, true)
+        assert.equal(response.body.emailError, undefined)
+        assert.equal(message.to, 'customer@example.test')
+        assert.match(message.subject, /order Shipped/)
+    } finally {
+        Order.findById = originals.findById
+        Order.findOneAndUpdate = originals.findOneAndUpdate
+        User.findById = originals.userFindById
+        Product.updateOne = originals.productUpdateOne
+        emailService.sendMail = originals.sendMail
+    }
+})
 
 const makeResponse = () => ({
     statusCode: 200,
