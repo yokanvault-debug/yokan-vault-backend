@@ -31,7 +31,7 @@ const createEmailHtml = ({
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fcff;padding:24px 12px;">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #e8edf1;border-radius:10px;overflow:hidden;">
-        <tr><td style="padding:14px 28px;background:#435266;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:1px;">YOKAN VAULT</td></tr>
+        <tr><td style="padding:14px 28px;background:#435266;"><img src="cid:yokan-vault-logo" width="220" height="55" alt="Yokan Vault" style="display:block;width:220px;max-width:100%;height:auto;border:0;"></td></tr>
         <tr><td style="padding:28px;font-size:15px;line-height:1.6;">
           <h1 style="margin:0 0 18px;font-size:22px;line-height:1.3;color:#303e4b;">${safeTitle}</h1>
           ${safeGreeting ? `<p style="margin:0 0 14px;">${safeGreeting}</p>` : ''}

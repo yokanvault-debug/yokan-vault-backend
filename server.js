@@ -1,6 +1,7 @@
 require('./utils/netFix')
 const dotenv = require('dotenv');
-dotenv.config({ path: './config/.env' })
+const path = require('path')
+dotenv.config({ path: path.join(__dirname, 'config', '.env') })
 
 const app = require('./app');
 const connectDatabase = require('./config/database')
