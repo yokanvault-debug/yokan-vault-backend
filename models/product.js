@@ -147,11 +147,6 @@ const productSchema = new mongoose.Schema({
                 trim: true,
                 maxlength: 500
             },
-            originalComment: {
-                type: String,
-                maxlength: 500,
-                select: false
-            },
             order: {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: 'Order'

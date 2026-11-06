@@ -197,7 +197,7 @@ test('delivered-order review stores the order association and updates an existin
         assert.equal(product.reviews.length, 1)
         assert.equal(existing.rating, 5)
         assert.equal(existing.comment, 'Great quality')
-        assert.equal(existing.originalComment, 'Great quality')
+        assert.equal(Object.hasOwn(existing, 'originalComment'), false)
         assert.equal(String(existing.order), orderId)
         assert.equal(saved, true)
     } finally {
@@ -206,7 +206,7 @@ test('delivered-order review stores the order association and updates an existin
     }
 })
 
-test('admin review list includes original comments while public review responses exclude them', async () => {
+test('admin and public review lists show only filtered comments', async () => {
     const originals = {
         productFind: Product.find,
         productFindById: Product.findById
@@ -220,8 +220,12 @@ test('admin review list includes original comments while public review responses
         originalComment: 'This is shit.'
     }
     const product = { _id: productId, name: 'Test product', reviews: [review] }
+    let projection
     const query = {
-        select() { return this },
+        select(fields) {
+            projection = fields
+            return this
+        },
         then(resolve, reject) { return Promise.resolve([product]).then(resolve, reject) }
     }
     Product.find = () => query
@@ -230,8 +234,9 @@ test('admin review list includes original comments while public review responses
         const adminResponse = makeResponse()
         await productController.getAdminReviews({}, adminResponse)
         assert.equal(adminResponse.statusCode, 200)
-        assert.equal(adminResponse.body.reviews[0].originalComment, 'This is shit.')
+        assert.equal(projection, '_id name reviews._id reviews.user reviews.name reviews.rating reviews.comment')
         assert.equal(adminResponse.body.reviews[0].comment, 'This is ****.')
+        assert.equal(Object.hasOwn(adminResponse.body.reviews[0], 'originalComment'), false)
 
         const publicResponse = makeResponse()
         await productController.getProductReviews({ query: { id: productId } }, publicResponse)
@@ -244,53 +249,8 @@ test('admin review list includes original comments while public review responses
     }
 })
 
-test('admin review edits preserve original text, re-filter public text, and recalculate product ratings', async () => {
-    const originals = {
-        productFindById: Product.findById,
-        productFindOneAndUpdate: Product.findOneAndUpdate,
-        clean: Filter.prototype.clean
-    }
-    const review = {
-        _id: '64b000000000000000000099',
-        rating: 2,
-        comment: 'Old filtered text',
-        originalComment: 'Old original text'
-    }
-    let updatedQuery
-    let updatedValues
-    const product = {
-        _id: productId,
-        reviews: [review],
-    }
-    Product.findById = async () => product
-    Product.findOneAndUpdate = async (query, update) => {
-        updatedQuery = query
-        updatedValues = update.$set
-        return product
-    }
-    Filter.prototype.clean = comment => comment.replace('badword', '*******')
-    try {
-        const response = makeResponse()
-        await productController.updateAdminReview({
-            params: { productId, id: review._id },
-            body: { rating: 5, comment: 'A badword review' }
-        }, response)
-        assert.equal(response.statusCode, 200)
-        assert.deepEqual(updatedQuery, { _id: productId, 'reviews._id': review._id })
-        assert.equal(updatedValues['reviews.$.originalComment'], 'A badword review')
-        assert.equal(updatedValues['reviews.$.comment'], 'A ******* review')
-        assert.equal(updatedValues['reviews.$.rating'], 5)
-        assert.equal(updatedValues.ratings, 5)
-        assert.equal(updatedValues.numOfReviews, 1)
-    } finally {
-        Product.findById = originals.productFindById
-        Product.findOneAndUpdate = originals.productFindOneAndUpdate
-        Filter.prototype.clean = originals.clean
-    }
-})
-
-test('raw review text is excluded from default product projections', () => {
-    assert.equal(Product.schema.path('reviews.originalComment').options.select, false)
+test('review schema does not store unfiltered review text', () => {
+    assert.equal(Product.schema.path('reviews.originalComment'), undefined)
 })
 
 test('review validation rejects invalid rating, empty comment, and overlong comment', async () => {

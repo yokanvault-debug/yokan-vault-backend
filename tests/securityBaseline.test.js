@@ -194,7 +194,18 @@ test('only admins can update products or delete reviews', async () => {
                     },
                     body: JSON.stringify({ rating: 1, comment: 'Customer edit' })
                 })
-                assert.equal(customerReviewEdit.status, 403)
+                assert.equal(customerReviewEdit.status, 404)
+                assert.equal(updateCount, 0)
+
+                const adminReviewEdit = await fetch(`${api.origin}/admin/reviews/${productId}/${reviewId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'content-type': 'application/json',
+                        cookie: `token=${context.tokenFor('admin')}`
+                    },
+                    body: JSON.stringify({ rating: 1, comment: 'Admin edit' })
+                })
+                assert.equal(adminReviewEdit.status, 404)
                 assert.equal(updateCount, 0)
 
                 const adminUpdate = await fetch(`${api.origin}/admin/product/${productId}`, {
