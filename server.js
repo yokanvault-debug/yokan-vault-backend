@@ -30,5 +30,5 @@ app.listen(process.env.PORT, () => {
     isFirebaseAdminConfigured();
     verifySmtp()
         .then((where) => console.log(`SMTP ready - Mailtrap login accepted (${where})`))
-        .catch((error) => console.error('SMTP check failed:', error.code || error.name || 'unknown error'));
+        .catch((error) => console.error('SMTP check failed:', error.code || error.name || 'unknown error', error.message));
 });

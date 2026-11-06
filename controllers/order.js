@@ -457,6 +457,28 @@ exports.deleteOrder = async (req, res, next) => {
 }
 
 // email the customer: item list, subtotals, grand total + PDF receipt
+const describeEmailFailure = (error) => {
+    const code = error.responseCode || error.code
+    const responseCode = Number(error.responseCode)
+
+    if (/Email is not configured/.test(error.message || '')) {
+        return 'Email is not configured on the backend. Set EMAIL_* or the equivalent SMTP_* variables in the Render service environment.'
+    }
+    if (error.code === 'EAUTH' || responseCode === 535) {
+        return 'SMTP authentication failed. Verify the Mailtrap username and password in the Render service environment.'
+    }
+    if (['ENOTFOUND', 'ETIMEDOUT', 'ECONNECTION', 'ECONNREFUSED', 'ESOCKET', 'EHOSTUNREACH', 'ENETUNREACH'].includes(error.code)) {
+        return `The backend could not connect to the SMTP server (${error.code}). Verify EMAIL_HOST and EMAIL_PORT in Render, then check the backend service logs.`
+    }
+    if (error.code === 'EENVELOPE' || [550, 553].includes(responseCode)) {
+        return `The SMTP server rejected the sender or recipient${code ? ` (${code})` : ''}. Verify EMAIL_FROM_ADDRESS and the destination address in Render/Mailtrap.`
+    }
+    if (error.code === 'ENOENT') {
+        return 'An email attachment or logo file is missing from the deployed backend.'
+    }
+    return `Email could not be sent${code ? ` (${code})` : ''}. Check the backend service logs for details.`
+}
+
 const notifyCustomer = async (order, newStatus, { confirmation = false, customer: orderCustomer } = {}) => {
     let emailSent = false, emailError
     try {
@@ -491,9 +513,8 @@ const notifyCustomer = async (order, newStatus, { confirmation = false, customer
         }
     } catch (error) {
         console.error('Order email failed:', error.code || error.name || 'unknown error', error.message)
-        emailError = confirmation
-            ? 'Order was created, but email delivery failed.'
-            : 'Order status was updated, but email delivery failed.'
+        const context = confirmation ? 'Order was created' : 'Order status was updated'
+        emailError = `${context}, but email delivery failed: ${describeEmailFailure(error)}`
     }
     return { emailSent, emailError }
 }

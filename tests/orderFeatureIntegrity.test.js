@@ -12,7 +12,7 @@ const userId = '64b000000000000000000010'
 const productId = '64b000000000000000000001'
 const orderId = '64b000000000000000000020'
 
-test('order status updates send an email and report the delivery result', async () => {
+test('order status updates send email and report actionable SMTP failures', async () => {
     const originals = {
         findById: Order.findById,
         findOneAndUpdate: Order.findOneAndUpdate,
@@ -51,6 +51,22 @@ test('order status updates send an email and report the delivery result', async 
         assert.equal(response.body.emailError, undefined)
         assert.equal(message.to, 'customer@example.test')
         assert.match(message.subject, /order Shipped/)
+
+        emailService.sendMail = async () => {
+            const error = new Error('invalid credentials')
+            error.code = 'EAUTH'
+            throw error
+        }
+        const failedResponse = makeResponse()
+        await orderController.updateOrder({
+            params: { id: orderId },
+            body: { status: 'Shipped' },
+            user: { _id: '64b000000000000000000099', role: 'admin' }
+        }, failedResponse)
+        assert.equal(failedResponse.statusCode, 200)
+        assert.equal(failedResponse.body.emailSent, false)
+        assert.match(failedResponse.body.emailError, /SMTP authentication failed/)
+        assert.match(failedResponse.body.emailError, /Render service environment/)
     } finally {
         Order.findById = originals.findById
         Order.findOneAndUpdate = originals.findOneAndUpdate
