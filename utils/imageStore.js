@@ -7,6 +7,7 @@ const UPLOAD_DIR = path.join(__dirname, '..', 'uploads')
 fs.mkdirSync(UPLOAD_DIR, { recursive: true })
 
 const cloudinaryReady = () => Boolean(cloudinary.v2.config().cloud_name && cloudinary.v2.config().api_key && cloudinary.v2.config().api_secret)
+const localFallbackAllowed = () => process.env.NODE_ENV !== 'production' && process.env.IMAGE_FALLBACK !== 'off'
 
 // base URL of this API, used to build links for locally stored images
 const baseUrl = (req) => process.env.API_ORIGIN || `${req.protocol}://${req.get('host')}`
@@ -36,12 +37,13 @@ exports.saveImage = async (req, input, folder = 'products') => {
             return { public_id: result.public_id, url: result.secure_url }
         } catch (error) {
             console.log(`Cloudinary upload failed: ${error.message}`)
-            // on Render set IMAGE_FALLBACK=off so a Cloudinary problem shows an error instead of saving to a disk that gets wiped
-            if (process.env.IMAGE_FALLBACK === 'off') throw error
+            if (!localFallbackAllowed()) throw error
             console.log('Saving the image locally instead')
         }
     }
-    if (process.env.IMAGE_FALLBACK === 'off') throw new Error('Cloudinary is not configured on the server')
+    if (!localFallbackAllowed()) {
+        throw new Error('Cloudinary must be configured and available for image uploads in production')
+    }
     return saveLocal(req, input, folder)
 }
 

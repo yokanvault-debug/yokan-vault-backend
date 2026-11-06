@@ -53,7 +53,7 @@ exports.pullBlindBox = async (req, res, next) => {
                 orderItems: { $elemMatch: { product: box._id, pullsRemaining: { $gt: 0 } } },
             },
             { $inc: { 'orderItems.$.pullsRemaining': -1 } },
-            { new: true }
+            { returnDocument: 'after' }
         );
         if (!reservedOrder) {
             return res.status(403).json({ success: false, message: 'Purchase this blind box before opening a pull.' });
@@ -86,7 +86,7 @@ exports.pullBlindBox = async (req, res, next) => {
             selected = await Product.findOneAndUpdate(
                 { _id: candidate._id, stock: { $gt: 0 } },
                 { $inc: { stock: -1 } },
-                { new: true }
+                { returnDocument: 'after' }
             );
             if (selected) break;
             remainingCandidates.splice(remainingCandidates.findIndex((item) => item._id.equals(candidate._id)), 1);

@@ -83,7 +83,7 @@ exports.newOrder = async (req, res, next) => {
                     $inc: { stock: -item.quantity },
                     $push: { inventoryReservations: { order: order._id, quantity: item.quantity } }
                 },
-                { new: true }
+                { returnDocument: 'after' }
             )
             if (!reserved) {
                 const error = new Error('Insufficient stock')
@@ -95,7 +95,7 @@ exports.newOrder = async (req, res, next) => {
         const completedOrder = await Order.findOneAndUpdate(
             { _id: order._id, inventoryReserved: false },
             { $set: { inventoryReserved: true } },
-            { new: true }
+            { returnDocument: 'after' }
         )
         if (!completedOrder) throw new Error('Order reservation could not be finalized')
         await notifyCustomer(completedOrder, 'Processing', { confirmation: true, customer: req.user })
@@ -486,7 +486,7 @@ const notifyCustomer = async (order, newStatus, { confirmation = false, customer
             emailSent = true
         }
     } catch (error) {
-        console.error('Order email failed:', error.code || error.name || 'unknown error')
+        console.error('Order email failed:', error.code || error.name || 'unknown error', error.message)
         emailError = confirmation
             ? 'Order was created, but email delivery failed.'
             : 'Order status was updated, but email delivery failed.'
@@ -589,7 +589,7 @@ exports.updateOrder = async (req, res, next) => {
         const updatedOrder = await Order.findOneAndUpdate(
             updateFilter,
             { $set: updates },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         )
         if (!updatedOrder) {
             const latestOrder = await Order.findById(order._id)
@@ -672,7 +672,7 @@ exports.cancelOrder = async (req, res, next) => {
                     cancelledByRole: req.user.role
                 }
             },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         )
         if (!cancelledOrder) {
             return res.status(409).json({ message: 'This order changed before cancellation completed. Refresh and try again.' })

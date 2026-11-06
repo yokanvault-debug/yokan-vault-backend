@@ -95,9 +95,8 @@ exports.updateProduct = async (req, res, next) => {
         delete req.body.images
     }
     product = await Product.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
-        useFindandModify: false
     })
     // console.log(product)
     return res.status(200).json({
@@ -248,9 +247,8 @@ exports.deleteReview = async (req, res, next) => {
         ratings,
         numOfReviews
     }, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
-        useFindAndModify: false
     })
     if (!updatedProduct) return res.status(404).json({ success: false, message: 'Product not found' })
 

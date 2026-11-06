@@ -34,7 +34,7 @@ exports.updateBrand = async (req, res, next) => {
     }
     try {
         brand = await Brand.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true
         })
         return res.status(200).json({

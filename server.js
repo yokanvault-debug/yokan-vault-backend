@@ -14,7 +14,13 @@ cloudinary.config({
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 })
-console.log('Cloudinary:', cloudinary.v2.config().cloud_name ? `configured (${cloudinary.v2.config().cloud_name})` : 'NOT configured - images will be saved locally')
+const cloudinaryName = cloudinary.v2.config().cloud_name
+const cloudinaryStatus = cloudinaryName
+    ? `configured (${cloudinaryName})`
+    : process.env.NODE_ENV === 'production'
+        ? 'NOT configured - image uploads will fail'
+        : 'NOT configured - images will be saved locally'
+console.log('Cloudinary:', cloudinaryStatus)
 
 app.listen(process.env.PORT, () => {
     console.log(`server started on port:' ${process.env.PORT} in ${process.env.NODE_ENV} mode`);

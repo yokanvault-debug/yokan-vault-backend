@@ -198,7 +198,7 @@ exports.updateProfile = async (req, res, next) => {
         }
 
         const user = await User.findByIdAndUpdate(req.user.id, newUserData, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true,
         })
 
@@ -289,9 +289,8 @@ exports.updateUser = async (req, res, next) => {
     }
 
     const user = await User.findByIdAndUpdate(req.params.id, newUserData, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
-        // useFindAndModify: false
     })
 
     return res.status(200).json({

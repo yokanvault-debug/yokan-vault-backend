@@ -24,7 +24,7 @@ const USERNAME = 'yokanadmin'
     await User.findOneAndUpdate(
         { email: EMAIL },
         { $set: { firebaseUid: fb.uid, email: EMAIL, username: USERNAME, displayName: 'Yokan Admin', name: 'Yokan Admin', role: 'admin' } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     )
     console.log(`Admin ready  ->  ${EMAIL}  /  ${PASSWORD}`)
     process.exit(0)

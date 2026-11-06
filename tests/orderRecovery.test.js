@@ -5,7 +5,6 @@ const Product = require('../models/product')
 const orderController = require('../controllers/order')
 const buildReceipt = require('../utils/receipt')
 const { createEmailHtml, escapeHtml } = require('../utils/emailTemplate')
-const { getInlineLogoAttachment } = require('../utils/emailService')
 const { createOrderDetailsHtml, imageUrlForEmail } = require('../utils/orderEmail')
 
 const productId = '64b000000000000000000001'
@@ -185,21 +184,12 @@ test('shared email template uses the storefront palette and a simple responsive 
     assert.match(html, /background:#435266/)
     assert.match(html, /background:#c4a47c/)
     assert.match(html, /max-width:600px/)
-    assert.match(html, /src="cid:yokan-vault-logo"/)
+    assert.match(html, /YOKAN VAULT/)
+    assert.doesNotMatch(html, /cid:yokan-vault-logo/)
     assert.match(html, /Verify email/)
     assert.match(html, /Hello &lt;Collector&gt;/)
     assert.match(html, /&quot;A&quot;/)
     assert.doesNotMatch(html, /#a855f7|#06b6d4|font-size:28px/)
-})
-
-test('email logo is attached inline using the template content ID', () => {
-    const logo = getInlineLogoAttachment()
-    assert.equal(logo.filename, 'yokan-logo.png')
-    assert.equal(logo.cid, 'yokan-vault-logo')
-    assert.equal(logo.contentType, 'image/png')
-    assert.equal(logo.contentDisposition, 'inline')
-    assert.ok(Buffer.isBuffer(logo.content))
-    assert.ok(logo.content.length > 0)
 })
 
 test('order email includes safe product images, prices, and shipping details', () => {
